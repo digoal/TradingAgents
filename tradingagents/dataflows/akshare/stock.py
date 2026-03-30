@@ -35,9 +35,7 @@ def get_akshare_stock_online(
     """
     Get A-share historical OHLCV data using akshare.
 
-    Uses akshare.stock_zh_a_hist_tx() to retrieve daily historical data.
-    This function uses Tencent's server (proxy.finance.qq.com) instead of
-    eastmoney's push2his server, which may be blocked in some networks.
+    Tries eastmoney source (has volume) first, falls back to Tencent source.
 
     Args:
         symbol: A-share ticker in any supported format (600000, sh600000, 000001.SZ, etc.)
@@ -54,27 +52,67 @@ def get_akshare_stock_online(
     except ValueError as e:
         return f"Error: Invalid date format. Use YYYY-MM-DD. Details: {e}"
 
-    # Convert A-share ticker to Tencent format (sh600089, sz000001)
+    # Convert A-share ticker to proper format
     if is_china_ticker(symbol):
         market, code = normalize_cn_ticker(symbol)
-        if market == "SH":
-            tx_symbol = f"sh{code}"
-        else:
-            tx_symbol = f"sz{code}"
     else:
-        tx_symbol = symbol
+        return f"Error: Invalid A-share ticker format: {symbol}"
+
+    # Convert dates to yyyymmdd format
+    start_str = start_date.replace("-", "")
+    end_str = end_date.replace("-", "")
 
     try:
         import akshare as ak
 
-        # Use stock_zh_a_hist_tx which uses Tencent's server
-        # instead of eastmoney's push2his server
+        # Try eastmoney source first (has volume data)
+        try:
+            em_symbol = f"{code}.{'XSHG' if market == 'SH' else 'XSHE'}"
+            data = _akshare_retry(
+                lambda: ak.stock_zh_a_hist(
+                    symbol=code,
+                    start_date=start_str,
+                    end_date=end_str,
+                    adjust="qfq",
+                )
+            )
+
+            if data is not None and not data.empty and '成交量' in data.columns:
+                # Rename Chinese columns to English
+                column_mapping = {
+                    '日期': 'Date',
+                    '开盘': 'Open',
+                    '收盘': 'Close',
+                    '最高': 'High',
+                    '最低': 'Low',
+                    '成交量': 'Volume',
+                    '成交额': 'Turnover',
+                }
+                data = data.rename(columns=column_mapping)
+                # Keep only the columns we need
+                for col in ['Date', 'Open', 'Close', 'High', 'Low', 'Volume', 'Turnover']:
+                    if col not in data.columns:
+                        data[col] = ''
+
+                data['Date'] = pd.to_datetime(data['Date']).dt.strftime('%Y-%m-%d')
+
+                header = f"# Stock data for {symbol} from {start_date} to {end_date}\n"
+                header += f"# Total records: {len(data)}\n"
+                header += f"# Data retrieved on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                header += f"# Source: akshare (eastmoney)\n\n"
+
+                return header + data[['Date', 'Open', 'Close', 'High', 'Low', 'Volume', 'Turnover']].to_csv(index=False)
+        except Exception:
+            pass  # Fall through to Tencent fallback
+
+        # Fallback to Tencent source (reliable but no volume)
+        tx_symbol = f"sh{code}" if market == "SH" else f"sz{code}"
         data = _akshare_retry(
             lambda: ak.stock_zh_a_hist_tx(
                 symbol=tx_symbol,
-                start_date=start_date.replace("-", ""),
-                end_date=end_date.replace("-", ""),
-                adjust="qfq"  # Forward adjusted price
+                start_date=start_str,
+                end_date=end_str,
+                adjust="qfq"
             )
         )
 
@@ -82,18 +120,15 @@ def get_akshare_stock_online(
             return f"No data found for symbol '{symbol}' between {start_date} and {end_date}"
 
         # Rename columns from Tencent format to standard English names
-        # stock_zh_a_hist_tx returns: date, open, close, high, low, amount
         column_mapping = {
             'date': 'Date',
             'open': 'Open',
             'close': 'Close',
             'high': 'High',
             'low': 'Low',
-            'amount': 'Turnover',  # amount is in terms of money
-            'volume': 'Volume',    # if volume column exists
+            'amount': 'Turnover',
         }
 
-        # Only rename columns that exist
         rename_dict = {k: v for k, v in column_mapping.items() if k in data.columns}
         data = data.rename(columns=rename_dict)
 
@@ -101,17 +136,16 @@ def get_akshare_stock_online(
         if 'Date' in data.columns:
             data['Date'] = pd.to_datetime(data['Date']).dt.strftime('%Y-%m-%d')
 
-        # Add Volume column if not present (Tencent API may not include it)
+        # Add Volume column as empty since Tencent source doesn't have it
         if 'Volume' not in data.columns:
             data['Volume'] = ''
 
-        # Add metadata header
         header = f"# Stock data for {symbol} from {start_date} to {end_date}\n"
         header += f"# Total records: {len(data)}\n"
         header += f"# Data retrieved on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-        header += f"# Source: akshare (Tencent)\n\n"
+        header += f"# Source: akshare (Tencent, no volume data)\n\n"
 
-        return header + data.to_csv(index=False)
+        return header + data[['Date', 'Open', 'Close', 'High', 'Low', 'Volume', 'Turnover']].to_csv(index=False)
 
     except ImportError:
         return "Error: akshare library not installed. Install with: pip install akshare"
