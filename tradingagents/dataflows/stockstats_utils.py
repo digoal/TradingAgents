@@ -54,11 +54,32 @@ class StockstatsUtils:
         curr_date: Annotated[
             str, "curr date for retrieving stock price data, YYYY-mm-dd"
         ],
+        data: Annotated[
+            pd.DataFrame | None,
+            "Optional pre-fetched DataFrame to use instead of fetching from yfinance"
+        ] = None,
     ):
         config = get_config()
-
-        today_date = pd.Timestamp.today()
         curr_date_dt = pd.to_datetime(curr_date)
+
+        # If data is provided (e.g., from akshare), use it directly
+        if data is not None:
+            data = _clean_dataframe(data)
+            df = wrap(data)
+            df["Date"] = df["Date"].dt.strftime("%Y-%m-%d")
+            curr_date_str = curr_date_dt.strftime("%Y-%m-%d")
+
+            df[indicator]  # trigger stockstats to calculate the indicator
+            matching_rows = df[df["Date"].str.startswith(curr_date_str)]
+
+            if not matching_rows.empty:
+                indicator_value = matching_rows[indicator].values[0]
+                return indicator_value
+            else:
+                return "N/A: Not a trading day (weekend or holiday)"
+
+        # Otherwise fetch from yfinance (original behavior)
+        today_date = pd.Timestamp.today()
 
         end_date = today_date
         start_date = today_date - pd.DateOffset(years=15)

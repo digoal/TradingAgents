@@ -22,11 +22,13 @@ DEFAULT_CONFIG = {
     "max_recur_limit": 100,
     # Data vendor configuration
     # Category-level configuration (default for all tools in category)
+    # Available vendors: yfinance, alpha_vantage, akshare, efinance
+    # For A-share stocks, akshare and efinance are automatically prioritized
     "data_vendors": {
-        "core_stock_apis": "yfinance",       # Options: alpha_vantage, yfinance
-        "technical_indicators": "yfinance",  # Options: alpha_vantage, yfinance
-        "fundamental_data": "yfinance",      # Options: alpha_vantage, yfinance
-        "news_data": "yfinance",             # Options: alpha_vantage, yfinance
+        "core_stock_apis": "yfinance,akshare,efinance",       # Options: alpha_vantage, yfinance, akshare, efinance
+        "technical_indicators": "yfinance,akshare",           # Options: alpha_vantage, yfinance, akshare
+        "fundamental_data": "yfinance,akshare,efinance",      # Options: alpha_vantage, yfinance, akshare, efinance
+        "news_data": "yfinance,akshare",                      # Options: alpha_vantage, yfinance, akshare
     },
     # Tool-level configuration (takes precedence over category-level)
     "tool_vendors": {

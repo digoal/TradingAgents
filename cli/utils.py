@@ -7,7 +7,7 @@ from cli.models import AnalystType
 
 console = Console()
 
-TICKER_INPUT_EXAMPLES = "Examples: SPY, CNC.TO, 7203.T, 0700.HK"
+TICKER_INPUT_EXAMPLES = "Examples: SPY, CNC.TO, 7203.T, 0700.HK, 600000 (A-share Shanghai), 000001 (A-share Shenzhen), sh600000, sz000001"
 
 ANALYST_ORDER = [
     ("Market Analyst", AnalystType.MARKET),
@@ -38,8 +38,48 @@ def get_ticker() -> str:
 
 
 def normalize_ticker_symbol(ticker: str) -> str:
-    """Normalize ticker input while preserving exchange suffixes."""
-    return ticker.strip().upper()
+    """Normalize ticker input while preserving exchange suffixes.
+
+    A-share stock codes are automatically recognized and converted to yfinance format:
+    - Shanghai: 600000 -> 600000.SS, sh600000 -> 600000.SS, 600000.SH -> 600000.SS
+    - Shenzhen: 000001 -> 000001.SZ, sz000001 -> 000001.SZ, 000001.SZ -> 000001.SZ
+    """
+    import re
+    normalized = ticker.strip().upper()
+
+    # A-share patterns
+    # Pure 6-digit number: 600000, 000001
+    pure_digit_pattern = re.compile(r'^(\d{6})$')
+    # With prefix: SH600000, SZ000001
+    prefix_pattern = re.compile(r'^(SH|SZ)(\d{6})$')
+    # Already has exchange suffix - normalize .SH to .SS for consistency
+    if '.' in normalized:
+        parts = normalized.split('.')
+        if len(parts) == 2:
+            code, suffix = parts
+            if suffix in ('SH',):
+                return f"{code}.SS"  # Normalize .SH to .SS
+            return normalized
+
+    # Check pure 6-digit A-share code
+    digit_match = pure_digit_pattern.match(normalized)
+    if digit_match:
+        code = digit_match.group(1)
+        if code.startswith('6'):
+            return f"{code}.SS"  # Shanghai
+        elif code.startswith('0') or code.startswith('3'):
+            return f"{code}.SZ"  # Shenzhen (includes 0, 2, 3 prefix)
+
+    # Check with sh/sz prefix
+    prefix_match = prefix_pattern.match(normalized)
+    if prefix_match:
+        prefix, code = prefix_match.groups()
+        if prefix == 'SH':
+            return f"{code}.SS"
+        else:  # SZ
+            return f"{code}.SZ"
+
+    return normalized
 
 
 def get_analysis_date() -> str:
@@ -175,6 +215,13 @@ def select_shallow_thinking_agent(provider) -> str:
             ("GPT-OSS:latest (20B, local)", "gpt-oss:latest"),
             ("GLM-4.7-Flash:latest (30B, local)", "glm-4.7-flash:latest"),
         ],
+        "minimax": [
+            ("MiniMax-M2.7 - Latest MiniMax model", "MiniMax-M2.7"),
+            ("MiniMax-M2 - Previous generation", "MiniMax-M2"),
+            ("MiniMax-M2.5 - Fast variant with extended context", "MiniMax-M2.5"),
+            ("MiniMax-M2.1 - Balanced speed and capability", "MiniMax-M2.1"),
+            ("MiniMax-M1 - Lightweight fast model", "MiniMax-M1"),
+        ],
     }
 
     choice = questionary.select(
@@ -248,6 +295,10 @@ def select_deep_thinking_agent(provider) -> str:
             ("GPT-OSS:latest (20B, local)", "gpt-oss:latest"),
             ("Qwen3:latest (8B, local)", "qwen3:latest"),
         ],
+        "minimax": [
+            ("MiniMax-M2.7 - Latest MiniMax model", "MiniMax-M2.7"),
+            ("MiniMax-M2 - Previous generation", "MiniMax-M2"),
+        ],
     }
 
     choice = questionary.select(
@@ -279,6 +330,7 @@ def select_llm_provider() -> tuple[str, str]:
         ("OpenAI", "https://api.openai.com/v1"),
         ("Google", "https://generativelanguage.googleapis.com/v1"),
         ("Anthropic", "https://api.anthropic.com/"),
+        ("MiniMax", "https://api.minimaxi.com/anthropic"),
         ("xAI", "https://api.x.ai/v1"),
         ("Openrouter", "https://openrouter.ai/api/v1"),
         ("Ollama", "http://localhost:11434/v1"),
