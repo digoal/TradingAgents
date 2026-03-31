@@ -216,9 +216,9 @@ def select_shallow_thinking_agent(provider) -> str:
             ("GLM-4.7-Flash:latest (30B, local)", "glm-4.7-flash:latest"),
         ],
         "minimax": [
+            ("MiniMax-M2.5 - Fast variant with extended context", "MiniMax-M2.5"),
             ("MiniMax-M2.7 - Latest MiniMax model", "MiniMax-M2.7"),
             ("MiniMax-M2 - Previous generation", "MiniMax-M2"),
-            ("MiniMax-M2.5 - Fast variant with extended context", "MiniMax-M2.5"),
             ("MiniMax-M2.1 - Balanced speed and capability", "MiniMax-M2.1"),
             ("MiniMax-M1 - Lightweight fast model", "MiniMax-M1"),
         ],
@@ -297,7 +297,7 @@ def select_deep_thinking_agent(provider) -> str:
         ],
         "minimax": [
             ("MiniMax-M2.7 - Latest MiniMax model", "MiniMax-M2.7"),
-            ("MiniMax-M2 - Previous generation", "MiniMax-M2"),
+            ("MiniMax-M2.5 - Fast variant with extended context", "MiniMax-M2.5"),
         ],
     }
 
