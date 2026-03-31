@@ -26,7 +26,13 @@
 ---
 
 # TradingAgents: Multi-Agents LLM Financial Trading Framework
-
+  
+## MiniMax 使用方法
+```
+export ANTHROPIC_AUTH_TOKEN="your_minimax_api_key_here"  
+python -m cli.main
+```
+  
 ## News
 - [2026-03] **TradingAgents v0.2.2** released with GPT-5.4/Gemini 3.1/Claude 4.6 model coverage, five-tier rating scale, OpenAI Responses API, Anthropic effort control, and cross-platform stability.
 - [2026-02] **TradingAgents v0.2.0** released with multi-provider LLM support (GPT-5.x, Gemini 3.x, Claude 4.x, Grok 4.x) and improved system architecture.
